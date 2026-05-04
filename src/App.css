@@ -1,0 +1,14 @@
+.app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  cursor: url('./assets/cursor.png') 16 16, auto;
+  touch-action: none;
+}
+
+@media (max-width: 768px) {
+  .app {
+    cursor: auto;
+  }
+}
