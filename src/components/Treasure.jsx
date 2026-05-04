@@ -1,7 +1,8 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import './Treasure.css'
 
 function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect }) {
+  const [isCollecting, setIsCollecting] = useState(false)
   // Calculate if treasure is visible in torch light
   const isVisible = useMemo(() => {
     if (!torchOn) return false
@@ -16,10 +17,13 @@ function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect }) 
 
   const handleClick = useCallback((e) => {
     e.stopPropagation()
-    if (isVisible && !treasure.found) {
-      onCollect(treasure.id)
+    if (isVisible && !treasure.found && !isCollecting) {
+      setIsCollecting(true)
+      setTimeout(() => {
+        onCollect(treasure.id)
+      }, 250)
     }
-  }, [isVisible, treasure.found, treasure.id, onCollect])
+  }, [isVisible, treasure.found, treasure.id, onCollect, isCollecting])
 
   if (treasure.found) {
     return null
@@ -27,7 +31,7 @@ function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect }) 
 
   return (
     <div
-      className={`treasure ${isVisible ? 'visible' : ''}`}
+      className={`treasure ${isVisible ? 'visible' : ''} ${isCollecting ? 'collecting' : ''}`}
       style={{
         left: `${treasure.x}px`,
         top: `${treasure.y}px`,

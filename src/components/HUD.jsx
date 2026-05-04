@@ -29,21 +29,7 @@ function HUD({ elapsedTime, foundCount, totalCount, torchRadius, onRadiusChange 
       
       <div className="hud-item progress">
         <span className="icon">💰</span>
-        <span className="value">{foundCount} / {totalCount}</span>
-      </div>
-      
-      <div className="hud-item torch-control" onClick={handleSliderClick}>
-        <span className="label">Torch Size</span>
-        <input
-          type="range"
-          min="60"
-          max="280"
-          value={torchRadius}
-          onChange={handleSliderChange}
-          onClick={handleSliderClick}
-          className="torch-slider"
-        />
-        <span className="radius-value">{torchRadius}px</span>
+        <span className="value">{foundCount} / {totalCount} FOUND</span>
       </div>
     </div>
   )

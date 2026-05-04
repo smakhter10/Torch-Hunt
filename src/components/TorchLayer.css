@@ -6,5 +6,30 @@
   height: 100%;
   pointer-events: none;
   z-index: 10;
-  transition: background 0.5s ease;
+  transition: background 0.8s ease;
+}
+
+.warning-flicker {
+  animation: flicker 0.1s infinite alternate;
+}
+
+@keyframes flicker {
+  0% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  40% {
+    opacity: 0.9;
+  }
+  60% {
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.85;
+  }
 }

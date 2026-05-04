@@ -36,8 +36,14 @@ function App() {
   const [elapsedTime, setElapsedTime] = useState(0)
   const [gameCompleted, setGameCompleted] = useState(false)
   
+  const [torchState, setTorchState] = useState('stable') // 'stable' | 'warning' | 'off' | 'recovering'
+  const [recoveryClicks, setRecoveryClicks] = useState(0)
+  const [failureCount, setFailureCount] = useState(0)
+  const [recoveryFlash, setRecoveryFlash] = useState(false)
+  
   const timerRef = useRef(null)
   const animationFrameRef = useRef(null)
+  const failureTimerRef = useRef(null)
 
   // Generate random treasure positions without overlap
   const generateTreasurePositions = useCallback(() => {
@@ -66,7 +72,8 @@ function App() {
         })
         
         if (!tooClose) {
-          position = { x, y, size, image: treasureImages[i], id: i, found: false }
+          // Use a globally unique ID so Treasure components unmount on replay, resetting local state
+          position = { x, y, size, image: treasureImages[i], id: `${Date.now()}-${i}`, found: false }
           break
         }
         
@@ -89,6 +96,12 @@ function App() {
     setGameStarted(false)
     setGameCompleted(false)
     setTorchOn(true)
+    
+    // Reset v2.1 states
+    setTorchState('stable')
+    setRecoveryClicks(0)
+    setFailureCount(0)
+    if (failureTimerRef.current) clearTimeout(failureTimerRef.current)
   }, [generateTreasurePositions])
 
   useEffect(() => {
@@ -118,6 +131,33 @@ function App() {
     }
   }, [gameStarted, gameCompleted])
 
+  // Instability System
+  useEffect(() => {
+    if (!gameStarted || gameCompleted || torchState !== 'stable' || failureCount >= 3) {
+      if (failureTimerRef.current) clearTimeout(failureTimerRef.current)
+      return
+    }
+
+    // First failure: 8-12s, Subsequent: 10-15s
+    const minDelay = failureCount === 0 ? 8000 : 10000
+    const maxDelay = failureCount === 0 ? 12000 : 15000
+    const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay
+
+    failureTimerRef.current = setTimeout(() => {
+      setTorchState('warning')
+      
+      // After warning, turn off completely
+      setTimeout(() => {
+        setTorchState('off')
+      }, 800)
+      
+    }, delay)
+
+    return () => {
+      if (failureTimerRef.current) clearTimeout(failureTimerRef.current)
+    }
+  }, [gameStarted, gameCompleted, torchState, failureCount])
+
   // Handle mouse/touch movement
   const handleMove = useCallback((e) => {
     startGame()
@@ -140,10 +180,32 @@ function App() {
     }
   }, [startGame])
 
-  // Toggle torch
-  const toggleTorch = useCallback(() => {
+  // Handle clicks on the main container
+  const handleContainerClick = useCallback((e) => {
+    if (torchState === 'off' || torchState === 'recovering') {
+      // Recovery logic
+      if (torchState === 'off') setTorchState('recovering')
+      
+      setRecoveryFlash(true)
+      setTimeout(() => setRecoveryFlash(false), 150)
+      
+      setRecoveryClicks(prev => {
+        const next = prev + 1
+        // Randomize between 3 and 4 clicks for recovery as requested
+        const targetClicks = Math.random() > 0.5 ? 4 : 3;
+        if (next >= targetClicks) {
+          setTorchState('stable')
+          setFailureCount(f => f + 1)
+          return 0
+        }
+        return next
+      })
+      return
+    }
+
+    // Normal torch toggle
     setTorchOn(prev => !prev)
-  }, [])
+  }, [torchState])
 
   // Handle treasure collection
   const collectTreasure = useCallback((id) => {
@@ -184,7 +246,7 @@ function App() {
       className="app"
       onMouseMove={handleMove}
       onTouchMove={handleMove}
-      onClick={toggleTorch}
+      onClick={handleContainerClick}
     >
       <GameContainer />
       
@@ -206,6 +268,8 @@ function App() {
         radius={torchRadius}
         isOn={torchOn}
         gameCompleted={gameCompleted}
+        torchState={torchState}
+        recoveryFlash={recoveryFlash}
       />
       
       {/* HUD */}
