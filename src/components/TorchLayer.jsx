@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import './TorchLayer.css'
 
-function TorchLayer({ position, radius, isOn, gameCompleted, torchState, recoveryFlash = false }) {
+function TorchLayer({ position, radius, isOn, gameCompleted, torchState, recoveryFlash = false, gamePhase, isHeartbeatMode }) {
   const maskStyle = useMemo(() => {
     if (gameCompleted) {
       return {
@@ -9,7 +9,7 @@ function TorchLayer({ position, radius, isOn, gameCompleted, torchState, recover
       }
     }
     
-    if (!isOn || torchState === 'off') {
+    if (gamePhase === 'intro' || !isOn || torchState === 'off') {
       return {
         background: '#000'
       }
@@ -26,9 +26,11 @@ function TorchLayer({ position, radius, isOn, gameCompleted, torchState, recover
     return {
       background: `radial-gradient(circle ${radius}px at ${position.x}px ${position.y}px, transparent 0%, transparent ${radius * 0.6}px, rgba(0,0,0,0.3) ${radius * 0.8}px, rgba(0,0,0,0.95) ${radius}px, #000 ${radius * 1.2}px)`
     }
-  }, [position.x, position.y, radius, isOn, gameCompleted, torchState, recoveryFlash])
+  }, [position.x, position.y, radius, isOn, gameCompleted, torchState, recoveryFlash, gamePhase])
 
-  const classNames = `torch-layer ${torchState === 'warning' ? 'warning-flicker' : ''}`
+  let classNames = 'torch-layer'
+  if (torchState === 'warning') classNames += ' warning-flicker'
+  if (isHeartbeatMode && torchState !== 'warning') classNames += ' heartbeat-flicker'
 
   return <div className={classNames} style={maskStyle} />
 }

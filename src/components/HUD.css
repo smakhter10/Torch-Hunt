@@ -118,3 +118,24 @@
     min-width: 70px;
   }
 }
+
+.hud {
+  transition: opacity 1s ease-in-out;
+  opacity: 1;
+}
+
+.hud.hud-hidden {
+  opacity: 0;
+}
+
+.heartbeat-timer {
+  animation: heartbeat-timer-pulse 1s infinite alternate ease-in-out;
+  color: #ff5555;
+  border-color: rgba(255, 85, 85, 0.6);
+  text-shadow: 0 0 10px rgba(255, 85, 85, 0.5);
+}
+
+@keyframes heartbeat-timer-pulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.05); filter: brightness(1.2); }
+}

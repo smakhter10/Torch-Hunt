@@ -12,3 +12,119 @@
     cursor: auto;
   }
 }
+
+.intro-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+  z-index: 5000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto; /* Block interactions */
+}
+
+.intro-text {
+  font-family: 'Courier New', monospace;
+  color: #fff;
+  font-size: 24px;
+  letter-spacing: 2px;
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}
+
+.intro-text.visible {
+  opacity: 1;
+}
+
+.heartbeat-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(255, 0, 0, 0.05);
+  pointer-events: none;
+  z-index: 50;
+  animation: heartbeat-pulse 2s infinite alternate ease-in-out;
+}
+
+@keyframes heartbeat-pulse {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Mobile Optimizations */
+.tap-to-begin-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+  z-index: 6000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.tap-to-begin-overlay h2 {
+  font-family: 'Luckiest Guy', cursive;
+  color: #ffb400;
+  font-size: 32px;
+  animation: heartbeat-pulse 1.5s infinite alternate ease-in-out;
+}
+
+.mobile-recovery-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  pointer-events: auto;
+}
+
+.mobile-recovery-btn {
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #ffb400;
+  border-radius: 10px;
+  padding: 15px 30px;
+  color: #ffb400;
+  font-family: 'Courier New', monospace;
+  font-size: 20px;
+  font-weight: bold;
+  box-shadow: 0 0 20px rgba(255, 180, 0, 0.5);
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.mobile-torch-toggle {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #ffb400;
+  color: white;
+  font-size: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(255, 180, 0, 0.3);
+  pointer-events: auto;
+  user-select: none;
+}

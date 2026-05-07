@@ -35,6 +35,10 @@ function App() {
   const [gameStarted, setGameStarted] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [gameCompleted, setGameCompleted] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [gamePhase, setGamePhase] = useState('intro') // 'pre-intro' | 'intro' | 'playing' | 'completed'
+  const [introTextVisible, setIntroTextVisible] = useState(false)
+  const [targetTorchPosition, setTargetTorchPosition] = useState({ x: 0, y: 0 })
   
   const [torchState, setTorchState] = useState('stable') // 'stable' | 'warning' | 'off' | 'recovering'
   const [recoveryClicks, setRecoveryClicks] = useState(0)
@@ -90,12 +94,17 @@ function App() {
 
   // Initialize game
   const initializeGame = useCallback(() => {
+    const mobile = window.innerWidth < 768 || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0)
+    setIsMobile(mobile)
+
     setTreasures(generateTreasurePositions())
     setFoundCount(0)
     setElapsedTime(0)
     setGameStarted(false)
     setGameCompleted(false)
+    setGamePhase(mobile ? 'pre-intro' : 'intro')
     setTorchOn(true)
+    setTorchRadius(mobile ? 150 : 120)
     
     // Reset v2.1 states
     setTorchState('stable')
@@ -121,15 +130,69 @@ function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [initializeGame])
 
+  // Haptic feedback helper
+  const vibrate = useCallback((pattern) => {
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(pattern)
+    }
+  }, [isMobile])
+
+  // Smooth torch interpolation for mobile
+  useEffect(() => {
+    if (!isMobile) return
+    let animationId
+    const loop = () => {
+      setTorchPosition(prev => {
+        const dx = targetTorchPosition.x - prev.x
+        const dy = targetTorchPosition.y - prev.y
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return targetTorchPosition
+        return {
+          x: prev.x + dx * 0.2,
+          y: prev.y + dy * 0.2
+        }
+      })
+      animationId = requestAnimationFrame(loop)
+    }
+    animationId = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(animationId)
+  }, [targetTorchPosition, isMobile])
+
+  // Intro Sequence
+  useEffect(() => {
+    if (gamePhase === 'intro') {
+      const t1 = setTimeout(() => {
+        setIntroTextVisible(true)
+      }, 500)
+      
+      const t2 = setTimeout(() => {
+        setIntroTextVisible(false)
+      }, 2000)
+      
+      const t3 = setTimeout(() => {
+        setGamePhase('playing')
+      }, 2500)
+      
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+        clearTimeout(t3)
+      }
+    }
+  }, [gamePhase])
+
+  // Heartbeat Mode
+  const remainingTreasures = 10 - foundCount
+  const isHeartbeatMode = remainingTreasures <= 2 && gamePhase !== 'completed'
+
   // Start timer on first interaction
   const startGame = useCallback(() => {
-    if (!gameStarted && !gameCompleted) {
+    if (!gameStarted && gamePhase === 'playing') {
       setGameStarted(true)
       timerRef.current = setInterval(() => {
         setElapsedTime(prev => prev + 10)
       }, 10)
     }
-  }, [gameStarted, gameCompleted])
+  }, [gameStarted, gamePhase])
 
   // Instability System
   useEffect(() => {
@@ -149,6 +212,7 @@ function App() {
       // After warning, turn off completely
       setTimeout(() => {
         setTorchState('off')
+        vibrate([200, 100, 200]) // Long pulse on failure
       }, 800)
       
     }, delay)
@@ -156,20 +220,22 @@ function App() {
     return () => {
       if (failureTimerRef.current) clearTimeout(failureTimerRef.current)
     }
-  }, [gameStarted, gameCompleted, torchState, failureCount])
+  }, [gameStarted, gameCompleted, torchState, failureCount, vibrate])
 
   // Handle mouse/touch movement
   const handleMove = useCallback((e) => {
+    if (gamePhase === 'intro' || gamePhase === 'pre-intro') return
     startGame()
     
     const updatePosition = (clientX, clientY) => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
+      if (isMobile) {
+        setTargetTorchPosition({ x: clientX, y: clientY - 70 })
+      } else {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = requestAnimationFrame(() => {
+          setTorchPosition({ x: clientX, y: clientY })
+        })
       }
-      
-      animationFrameRef.current = requestAnimationFrame(() => {
-        setTorchPosition({ x: clientX, y: clientY })
-      })
     }
 
     if (e.type === 'mousemove') {
@@ -178,20 +244,23 @@ function App() {
       const touch = e.touches[0]
       updatePosition(touch.clientX, touch.clientY)
     }
-  }, [startGame])
+  }, [startGame, gamePhase, isMobile])
 
   // Handle clicks on the main container
   const handleContainerClick = useCallback((e) => {
+    if (gamePhase === 'intro' || gamePhase === 'pre-intro') return
+    if (isMobile && (torchState === 'off' || torchState === 'recovering')) return // Handled by dedicated button
+
     if (torchState === 'off' || torchState === 'recovering') {
       // Recovery logic
       if (torchState === 'off') setTorchState('recovering')
       
       setRecoveryFlash(true)
       setTimeout(() => setRecoveryFlash(false), 150)
+      vibrate(50)
       
       setRecoveryClicks(prev => {
         const next = prev + 1
-        // Randomize between 3 and 4 clicks for recovery as requested
         const targetClicks = Math.random() > 0.5 ? 4 : 3;
         if (next >= targetClicks) {
           setTorchState('stable')
@@ -204,8 +273,35 @@ function App() {
     }
 
     // Normal torch toggle
+    if (!isMobile) {
+      setTorchOn(prev => !prev)
+    }
+  }, [torchState, gamePhase, isMobile, vibrate])
+
+  const handleMobileTorchToggle = useCallback((e) => {
+    e.stopPropagation()
     setTorchOn(prev => !prev)
-  }, [torchState])
+  }, [])
+
+  const handleMobileRecoveryClick = useCallback((e) => {
+    e.stopPropagation()
+    if (torchState === 'off') setTorchState('recovering')
+      
+    setRecoveryFlash(true)
+    setTimeout(() => setRecoveryFlash(false), 150)
+    vibrate(50)
+    
+    setRecoveryClicks(prev => {
+      const next = prev + 1
+      const targetClicks = Math.random() > 0.5 ? 4 : 3;
+      if (next >= targetClicks) {
+        setTorchState('stable')
+        setFailureCount(f => f + 1)
+        return 0
+      }
+      return next
+    })
+  }, [torchState, vibrate])
 
   // Handle treasure collection
   const collectTreasure = useCallback((id) => {
@@ -215,11 +311,13 @@ function App() {
       )
       
       const newFoundCount = updated.filter(t => t.found).length
+      vibrate(100) // Haptic feedback on collect
       setFoundCount(newFoundCount)
       
       // Check if game is complete
       if (newFoundCount === 10) {
         clearInterval(timerRef.current)
+        setGamePhase('completed')
         setTimeout(() => setGameCompleted(true), 500)
       }
       
@@ -250,6 +348,41 @@ function App() {
     >
       <GameContainer />
       
+      {/* Mobile Pre-Intro */}
+      {gamePhase === 'pre-intro' && (
+        <div className="tap-to-begin-overlay" onClick={() => setGamePhase('intro')}>
+          <h2>TAP TO BEGIN</h2>
+        </div>
+      )}
+
+      {/* Intro Overlay */}
+      {gamePhase === 'intro' && (
+        <div className="intro-overlay">
+          <h2 className={`intro-text ${introTextVisible ? 'visible' : ''}`}>
+            Light is your only guide.
+          </h2>
+        </div>
+      )}
+
+      {/* Mobile Recovery UI */}
+      {isMobile && (torchState === 'off' || torchState === 'recovering') && gamePhase === 'playing' && (
+        <div className="mobile-recovery-ui">
+          <button className="mobile-recovery-btn" onClick={handleMobileRecoveryClick}>
+            TAP TO RELIGHT
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Torch Toggle */}
+      {isMobile && gamePhase === 'playing' && torchState === 'stable' && (
+        <button className="mobile-torch-toggle" onClick={handleMobileTorchToggle}>
+          🔦
+        </button>
+      )}
+
+      {/* Heartbeat Overlay */}
+      {isHeartbeatMode && <div className="heartbeat-overlay" />}
+      
       {/* Treasures */}
       {treasures.map(treasure => (
         <Treasure
@@ -259,6 +392,9 @@ function App() {
           torchRadius={torchRadius}
           torchOn={torchOn}
           onCollect={collectTreasure}
+          isHeartbeatMode={isHeartbeatMode}
+          isMobile={isMobile}
+          torchRadius={torchRadius}
         />
       ))}
       
@@ -268,8 +404,10 @@ function App() {
         radius={torchRadius}
         isOn={torchOn}
         gameCompleted={gameCompleted}
+        gamePhase={gamePhase}
         torchState={torchState}
         recoveryFlash={recoveryFlash}
+        isHeartbeatMode={isHeartbeatMode}
       />
       
       {/* HUD */}
@@ -279,6 +417,8 @@ function App() {
         totalCount={10}
         torchRadius={torchRadius}
         onRadiusChange={setTorchRadius}
+        gamePhase={gamePhase}
+        isHeartbeatMode={isHeartbeatMode}
       />
       
       {/* Completion screen */}

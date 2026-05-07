@@ -33,3 +33,13 @@
     opacity: 0.85;
   }
 }
+
+.heartbeat-flicker {
+  animation: subtle-flicker 0.4s infinite alternate;
+}
+
+@keyframes subtle-flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.95; }
+  100% { opacity: 0.98; }
+}
