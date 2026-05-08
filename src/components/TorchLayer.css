@@ -43,3 +43,7 @@
   50% { opacity: 0.95; }
   100% { opacity: 0.98; }
 }
+
+.secret-mode-torch {
+  mix-blend-mode: multiply;
+}

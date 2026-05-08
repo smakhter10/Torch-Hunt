@@ -40,7 +40,14 @@ function App() {
   const [introTextVisible, setIntroTextVisible] = useState(false)
   const [targetTorchPosition, setTargetTorchPosition] = useState({ x: 0, y: 0 })
   
-  const [torchState, setTorchState] = useState('stable') // 'stable' | 'warning' | 'off' | 'recovering'
+  // V3.0 States
+  const [torchStability, setTorchStability] = useState(100)
+  const [eyesEvent, setEyesEvent] = useState(null)
+  const [secretMode, setSecretMode] = useState(false)
+  const [secretTreasure, setSecretTreasure] = useState(null)
+  const lastMoveRef = useRef({ x: 0, y: 0, time: 0, velocity: 0 })
+  
+  const [torchState, setTorchState] = useState('stable') // 'stable' | 'unstable' | 'warning' | 'off' | 'recovering'
   const [recoveryClicks, setRecoveryClicks] = useState(0)
   const [failureCount, setFailureCount] = useState(0)
   const [recoveryFlash, setRecoveryFlash] = useState(false)
@@ -77,7 +84,7 @@ function App() {
         
         if (!tooClose) {
           // Use a globally unique ID so Treasure components unmount on replay, resetting local state
-          position = { x, y, size, image: treasureImages[i], id: `${Date.now()}-${i}`, found: false }
+          position = { x, y, size, image: treasureImages[i], id: `${Date.now()}-${i}`, found: false, relocateCount: 0, isRelocating: false }
           break
         }
         
@@ -105,6 +112,13 @@ function App() {
     setGamePhase(mobile ? 'pre-intro' : 'intro')
     setTorchOn(true)
     setTorchRadius(mobile ? 150 : 120)
+    
+    // Reset V3.0 states
+    setSecretMode(false)
+    setSecretTreasure(null)
+    setTorchStability(100)
+    setEyesEvent(null)
+    lastMoveRef.current = { x: 0, y: 0, time: Date.now(), velocity: 0 }
     
     // Reset v2.1 states
     setTorchState('stable')
@@ -194,33 +208,78 @@ function App() {
     }
   }, [gameStarted, gamePhase])
 
-  // Instability System
+  // V3.0 Stability System
   useEffect(() => {
-    if (!gameStarted || gameCompleted || torchState !== 'stable' || failureCount >= 3) {
-      if (failureTimerRef.current) clearTimeout(failureTimerRef.current)
-      return
+    if (!gameStarted || gameCompleted || torchState === 'off' || torchState === 'recovering') return
+
+    const stabilityInterval = setInterval(() => {
+      setTorchStability(prev => {
+        const now = Date.now()
+        let newStability = prev
+        
+        // If moved recently (within 200ms)
+        const timeSinceMove = now - lastMoveRef.current.time
+        if (timeSinceMove < 200) {
+           const velocity = lastMoveRef.current.velocity || 0
+           const drainMulti = secretMode ? 1.8 : 1 // 80% faster drain in secret mode
+           
+           if (velocity > 15) newStability -= 15 * drainMulti // Very fast drain
+           else if (velocity > 5) newStability -= 8 * drainMulti // Fast drain
+           else newStability -= 4 * drainMulti // Normal drain
+        } else if (timeSinceMove > 500) {
+           const recMulti = secretMode ? 0.6 : 1 // Slower recovery in secret mode
+           newStability += 3 * recMulti // Recover when paused
+        }
+        
+        return Math.max(0, Math.min(100, newStability))
+      })
+    }, 200)
+
+    return () => clearInterval(stabilityInterval)
+  }, [gameStarted, gameCompleted, torchState, secretMode])
+
+  // Map Stability to State
+  useEffect(() => {
+    if (torchState === 'off' || torchState === 'recovering') return
+    
+    const warnThresh = secretMode ? 40 : 25 // Flickers sooner in secret mode
+    
+    if (torchStability > 60) {
+      if (torchState !== 'stable') setTorchState('stable')
+    } else if (torchStability > warnThresh) {
+      if (torchState !== 'unstable') setTorchState('unstable')
+    } else if (torchStability > 0) {
+      if (torchState !== 'warning') setTorchState('warning')
+    } else {
+      setTorchState('off')
+      vibrate([200, 100, 200]) // Long pulse on failure
     }
+  }, [torchStability, torchState, vibrate, secretMode])
 
-    // First failure: 8-12s, Subsequent: 10-15s
-    const minDelay = failureCount === 0 ? 8000 : 10000
-    const maxDelay = failureCount === 0 ? 12000 : 15000
-    const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay
+  // Ambient Eyes Loop
+  useEffect(() => {
+    if (!gameStarted || gameCompleted || gamePhase !== 'playing' || torchState === 'off') return
 
-    failureTimerRef.current = setTimeout(() => {
-      setTorchState('warning')
-      
-      // After warning, turn off completely
-      setTimeout(() => {
-        setTorchState('off')
-        vibrate([200, 100, 200]) // Long pulse on failure
-      }, 800)
-      
-    }, delay)
+    const eyesInterval = setInterval(() => {
+      // Chance increases as stability drops or in secret mode
+      let chance = secretMode ? 0.15 : (torchStability < 50 ? 0.05 : 0.01)
+      if (Math.random() < chance && !eyesEvent) {
+        // Spawn eyes near the edge of the torch
+        const angle = Math.random() * Math.PI * 2
+        const dist = torchRadius * (1.2 + Math.random() * 0.4)
+        setEyesEvent({
+          x: torchPosition.x + Math.cos(angle) * dist,
+          y: torchPosition.y + Math.sin(angle) * dist,
+          visible: true
+        })
+        
+        // Remove eyes after brief moment
+        setTimeout(() => setEyesEvent(null), 300)
+      }
+    }, 2000)
 
-    return () => {
-      if (failureTimerRef.current) clearTimeout(failureTimerRef.current)
-    }
-  }, [gameStarted, gameCompleted, torchState, failureCount, vibrate])
+    return () => clearInterval(eyesInterval)
+  }, [gameStarted, gameCompleted, gamePhase, torchStability, torchRadius, torchPosition, eyesEvent, torchState, secretMode])
 
   // Handle mouse/touch movement
   const handleMove = useCallback((e) => {
@@ -228,6 +287,26 @@ function App() {
     startGame()
     
     const updatePosition = (clientX, clientY) => {
+      // Calculate velocity for V3.0
+      const now = Date.now()
+      const dt = now - lastMoveRef.current.time
+      if (dt > 0) {
+        const dx = clientX - lastMoveRef.current.x
+        const dy = clientY - lastMoveRef.current.y
+        const dist = Math.sqrt(dx*dx + dy*dy)
+        lastMoveRef.current.velocity = (dist / dt) * 10 // rough pixels per 10ms
+      }
+      lastMoveRef.current = { x: clientX, y: clientY, time: now, velocity: lastMoveRef.current.velocity }
+
+      // Banish eyes if illuminated
+      if (eyesEvent && eyesEvent.visible) {
+         const edx = clientX - eyesEvent.x
+         const edy = clientY - eyesEvent.y
+         if (Math.sqrt(edx*edx + edy*edy) < torchRadius) {
+           setEyesEvent(null)
+         }
+      }
+
       if (isMobile) {
         setTargetTorchPosition({ x: clientX, y: clientY - 70 })
       } else {
@@ -272,11 +351,50 @@ function App() {
       return
     }
 
-    // Normal torch toggle
+    // Relocation Logic (Near Miss)
+    const clientX = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX)
+    const clientY = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY)
+    
+    if (clientX && clientY && torchOn && torchState !== 'warning' && torchState !== 'off') {
+      // First, determine if we hit a near-miss before mutating state
+      let nearMissId = null
+      for (const t of treasures) {
+        if (t.found || t.relocateCount >= 2) continue
+        
+        const dx = clientX - (t.x + t.size/2)
+        const dy = clientY - (t.y + t.size/2)
+        const dist = Math.sqrt(dx*dx + dy*dy)
+        
+        if (dist > t.size/2 && dist < t.size/2 + 60) {
+          nearMissId = t.id
+          break
+        }
+      }
+
+      if (nearMissId) {
+        // We have a near miss! Relocate it.
+        setTreasures(prev => prev.map(t => {
+          if (t.id === nearMissId) {
+            const safeWidth = Math.max(0, window.innerWidth - t.size - 2 * MARGIN)
+            const safeHeight = Math.max(0, window.innerHeight - t.size - 2 * MARGIN)
+            return {
+              ...t,
+              x: Math.random() * safeWidth + MARGIN,
+              y: Math.random() * safeHeight + MARGIN,
+              relocateCount: t.relocateCount + 1
+            }
+          }
+          return t
+        }))
+        return // Do not toggle torch!
+      }
+    }
+
+    // Normal torch toggle (only if we didn't relocate anything)
     if (!isMobile) {
       setTorchOn(prev => !prev)
     }
-  }, [torchState, gamePhase, isMobile, vibrate])
+  }, [torchState, gamePhase, isMobile, vibrate, torchOn, treasures])
 
   const handleMobileTorchToggle = useCallback((e) => {
     e.stopPropagation()
@@ -315,15 +433,80 @@ function App() {
       setFoundCount(newFoundCount)
       
       // Check if game is complete
-      if (newFoundCount === 10) {
+      const targetCount = 10 // Reset to 10 for both modes since foundCount is reset
+      if (newFoundCount === targetCount) {
         clearInterval(timerRef.current)
-        setGamePhase('completed')
-        setTimeout(() => setGameCompleted(true), 500)
+        if (secretMode) {
+          setGamePhase('completed')
+          setTimeout(() => setGameCompleted(true), 500)
+        } else {
+          setGamePhase('fake-completion')
+          setTimeout(() => setGameCompleted(true), 500) // Render completion UI behind
+          
+          // Spawn secret glint after 3.5s
+          setTimeout(() => {
+             const safeWidth = Math.max(0, window.innerWidth - 60 - 2 * MARGIN)
+             const safeHeight = Math.max(0, window.innerHeight - 60 - 2 * MARGIN)
+             setSecretTreasure({
+                x: Math.random() * safeWidth + MARGIN,
+                y: Math.random() * safeHeight + MARGIN
+             })
+          }, 3500)
+        }
       }
       
       return updated
     })
-  }, [])
+  }, [vibrate, secretMode])
+
+  const handleSecretGlintClick = useCallback((e) => {
+    e.stopPropagation()
+    vibrate([300, 100, 300])
+    setSecretTreasure(null)
+    setSecretMode(true)
+    setGamePhase('playing')
+    setGameCompleted(false)
+    setFoundCount(0)
+    
+    // Add 10 new corrupted treasures for the secret level
+    const corrupted = []
+    const isMobile = window.innerWidth < 768
+    // Much smaller treasures for secret mode
+    const minSize = isMobile ? 45 : 35
+    const maxSize = isMobile ? 60 : 45
+    for(let i=0; i<10; i++) {
+       const size = Math.floor(Math.random() * (maxSize - minSize + 1)) + minSize
+       const safeWidth = Math.max(0, window.innerWidth - size - 2 * MARGIN)
+       const safeHeight = Math.max(0, window.innerHeight - size - 2 * MARGIN)
+       corrupted.push({
+          x: Math.random() * safeWidth + MARGIN,
+          y: Math.random() * safeHeight + MARGIN,
+          size,
+          image: treasureImages[i],
+          id: `secret-${Date.now()}-${i}`,
+          found: false,
+          relocateCount: 0,
+          isRelocating: false
+       })
+    }
+    setTreasures(corrupted)
+    
+    // Start countdown for secret mode (45 seconds)
+    setElapsedTime(45000)
+    setGameStarted(true)
+    timerRef.current = setInterval(() => {
+      setElapsedTime(prev => {
+        const next = prev - 10
+        if (next <= 0) {
+          clearInterval(timerRef.current)
+          setGamePhase('completed')
+          setGameCompleted(true)
+          return 0
+        }
+        return next
+      })
+    }, 10)
+  }, [vibrate])
 
   // Handle wheel scroll for torch size (desktop) removed per request
 
@@ -341,12 +524,12 @@ function App() {
 
   return (
     <div 
-      className="app"
+      className={`app ${secretMode ? 'secret-mode-active' : ''}`}
       onMouseMove={handleMove}
       onTouchMove={handleMove}
       onClick={handleContainerClick}
     >
-      <GameContainer />
+      <GameContainer secretMode={secretMode} />
       
       {/* Mobile Pre-Intro */}
       {gamePhase === 'pre-intro' && (
@@ -394,9 +577,28 @@ function App() {
           onCollect={collectTreasure}
           isHeartbeatMode={isHeartbeatMode}
           isMobile={isMobile}
-          torchRadius={torchRadius}
+          secretMode={secretMode}
+          isRelocating={treasure.isRelocating}
         />
       ))}
+      
+      {/* Hidden Eyes Event */}
+      {eyesEvent && eyesEvent.visible && (
+        <div 
+          className="hidden-eyes"
+          style={{ left: eyesEvent.x - 20, top: eyesEvent.y - 5 }}
+        />
+      )}
+
+      {/* Secret Glint */}
+      {secretTreasure && (
+        <div 
+          className="secret-glint"
+          style={{ left: secretTreasure.x, top: secretTreasure.y }}
+          onClick={handleSecretGlintClick}
+          onTouchEnd={handleSecretGlintClick}
+        />
+      )}
       
       {/* Torch overlay */}
       <TorchLayer
@@ -419,6 +621,7 @@ function App() {
         onRadiusChange={setTorchRadius}
         gamePhase={gamePhase}
         isHeartbeatMode={isHeartbeatMode}
+        secretMode={secretMode}
       />
       
       {/* Completion screen */}

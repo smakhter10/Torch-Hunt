@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import './CompletionScreen.css'
 
-function CompletionScreen({ elapsedTime, onPlayAgain }) {
+function CompletionScreen({ elapsedTime, onPlayAgain, gamePhase }) {
   const formattedTimeParts = useMemo(() => {
     const totalMs = elapsedTime
     const minutes = Math.floor(totalMs / 60000)
@@ -20,8 +20,10 @@ function CompletionScreen({ elapsedTime, onPlayAgain }) {
     onPlayAgain()
   }
 
+  const isFake = gamePhase === 'fake-completion'
+
   return (
-    <div className="completion-screen">
+    <div className={`completion-screen ${isFake ? 'fake-completion-screen' : ''}`}>
       <div className="retro-terminal">
         <div className="system-status">
           <span className="status-box">SYSTEM_STATUS: COMPLETE</span>

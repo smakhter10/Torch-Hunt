@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import './HUD.css'
 
-function HUD({ elapsedTime, foundCount, totalCount, torchRadius, onRadiusChange, gamePhase, isHeartbeatMode }) {
+function HUD({ elapsedTime, foundCount, totalCount, torchRadius, onRadiusChange, gamePhase, isHeartbeatMode, secretMode }) {
   const formattedTime = useMemo(() => {
     const totalMs = elapsedTime
     const minutes = Math.floor(totalMs / 60000)
@@ -22,13 +22,12 @@ function HUD({ elapsedTime, foundCount, totalCount, torchRadius, onRadiusChange,
 
   return (
     <div className={`hud ${gamePhase === 'intro' ? 'hud-hidden' : ''}`}>
-      <div className={`hud-item timer ${isHeartbeatMode ? 'heartbeat-timer' : ''}`}>
-        <span className="icon">⏱</span>
+      <div className={`hud-item timer ${isHeartbeatMode ? 'heartbeat-timer' : ''} ${secretMode ? 'secret-timer' : ''}`}>
+        <span className="icon">{secretMode ? '⏳' : '⏱'}</span>
         <span className="value">{formattedTime}</span>
       </div>
       
       <div className="hud-item progress">
-        <span className="icon">💰</span>
         <span className="value">{foundCount} / {totalCount} FOUND</span>
       </div>
     </div>

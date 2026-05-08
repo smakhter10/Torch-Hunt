@@ -128,3 +128,55 @@
   pointer-events: auto;
   user-select: none;
 }
+
+/* V3.0 Upgrades */
+
+.hidden-eyes {
+  position: absolute;
+  width: 40px;
+  height: 10px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 15;
+  animation: eerieFade 0.3s ease-in-out forwards;
+}
+
+.hidden-eyes::before, .hidden-eyes::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+  animation: subtleBlink 0.2s alternate 2;
+}
+
+@keyframes eerieFade {
+  0% { opacity: 0; filter: blur(2px); }
+  50% { opacity: 1; filter: blur(0px); transform: scale(1.1); }
+  100% { opacity: 0; filter: blur(4px); transform: scale(0.9); }
+}
+
+@keyframes subtleBlink {
+  0% { transform: scaleY(1); opacity: 1; }
+  100% { transform: scaleY(0.1); opacity: 0.5; }
+}
+
+.secret-glint {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  background: radial-gradient(circle, #fff 0%, #ff5555 50%, transparent 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 20px #ff0000;
+  z-index: 5000;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: sinisterPulse 2s infinite ease-in-out;
+}
+
+@keyframes sinisterPulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.5); opacity: 1; box-shadow: 0 0 30px #ff0000; }
+}

@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useState } from 'react'
 import './Treasure.css'
 
-function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect, isHeartbeatMode, isMobile }) {
+function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect, isHeartbeatMode, isMobile, isRelocating, secretMode }) {
   const [isCollecting, setIsCollecting] = useState(false)
   
   // Random static scale for mobile variation
@@ -25,13 +25,13 @@ function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect, is
 
   const handleClick = useCallback((e) => {
     e.stopPropagation()
-    if (isVisible && !treasure.found && !isCollecting) {
+    if (isVisible && !treasure.found && !isCollecting && !isRelocating) {
       setIsCollecting(true)
       setTimeout(() => {
         onCollect(treasure.id)
       }, 250)
     }
-  }, [isVisible, treasure.found, treasure.id, onCollect, isCollecting])
+  }, [isVisible, treasure.found, treasure.id, onCollect, isCollecting, isRelocating])
 
   if (treasure.found) {
     return null
@@ -39,6 +39,7 @@ function Treasure({ treasure, torchPosition, torchRadius, torchOn, onCollect, is
 
   let classNames = `treasure ${isVisible ? 'visible' : ''} ${isCollecting ? 'collecting' : ''}`
   if (isHeartbeatMode && isVisible) classNames += ' heartbeat-proximity'
+  if (secretMode) classNames += ' secret-mode-treasure'
 
   return (
     <div

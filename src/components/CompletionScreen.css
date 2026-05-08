@@ -11,6 +11,13 @@
   z-index: 2000;
   animation: fadeIn 0.4s ease-out;
   backdrop-filter: blur(4px);
+  transition: all 1s ease-in-out;
+}
+
+.fake-completion-screen {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(0px);
+  pointer-events: none;
 }
 
 @keyframes fadeIn {
